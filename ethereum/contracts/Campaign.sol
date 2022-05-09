@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// Factory @ Rinkeby Test net: 0x41F9b4BA2871e04c311438Dd88aFe4dC62191ae5
 
 pragma solidity ^0.8.13;
 
@@ -6,7 +7,7 @@ contract campaignFactory {
     address [] public deployedCampaigns;
 
     function createCampaign(uint minimumContribution) public payable {
-        require(msg.value > 0, "To create a campaign, you need to transfer initial funds");
+        // require(msg.value > 0, "To create a campaign, you need to transfer initial funds");
 
         address deployedCampaign = address(new campaign(minimumContribution, msg.sender));
         deployedCampaigns.push(deployedCampaign);
@@ -70,7 +71,7 @@ contract campaign {
         return newRequest;
     }
 
-    // adds a participant to the lottery
+    // back the campaign with the desired funds
     function back() public payable {
         // check that the user entered at least the minimum contribution
         require(msg.value >= minimumContribution, "You need to send at least the minimum contribution"); 
@@ -132,5 +133,19 @@ contract campaign {
         // mark the request as completed and send out the money
         requestToFinalize.isCompleted = true;
         payable(requestToFinalize.recipient).transfer(requestToFinalize.value);
+    }
+
+    function getSummary() public view returns (uint, uint, uint, uint, address) {
+        return (
+            minimumContribution,
+            address(this).balance,
+            requests.length,
+            backersArr.length,
+            manager
+        );
+    }
+
+    function getRequestCount() public view returns (uint) {
+        return requests.length;
     }
 }

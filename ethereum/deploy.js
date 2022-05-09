@@ -1,5 +1,5 @@
 const wallet = require('@truffle/hdwallet-provider');
-const compiledCampaignFactory = require('./build/campaignFactory.json'); // Address @ Rinkeby: 0x34a2608375c3E9b43c4Ee2B47d24e2330e8CeeDE
+const compiledCampaignFactory = require('./build/campaignFactory.json'); // Address @ Rinkeby: 0x52F78fFEe162Ba8956B8a603b1D5A7C3e12Da04A
 
 const Web3 = require('web3');
 require('dotenv').config();
