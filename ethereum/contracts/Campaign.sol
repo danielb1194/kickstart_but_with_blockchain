@@ -6,10 +6,12 @@ contract campaignFactory {
     address [] public deployedCampaigns;
 
     function createCampaign(uint minimumContribution) public payable {
-        require(msg.value > 0, "To create a campaign, you need to transfer funds to pay for the gas fees");
+        require(msg.value > 0, "To create a campaign, you need to transfer initial funds");
 
         address deployedCampaign = address(new campaign(minimumContribution, msg.sender));
         deployedCampaigns.push(deployedCampaign);
+
+        payable(deployedCampaign).transfer(msg.value);
     }
 
     function getDeployedCampaigns() public view returns (address [] memory){
@@ -51,7 +53,9 @@ contract campaign {
         minimumContribution = minContribution;
     }
 
-    function createRequest(string memory description, uint value, address recipient) public managerOnly {
+    receive () external payable {}
+
+    function createRequest(string memory description, uint value, address recipient) public managerOnly returns (Request memory){
         Request memory newRequest = Request({
             description: description,
             value: value,
@@ -62,14 +66,18 @@ contract campaign {
         });
 
         requests.push(newRequest);
+
+        return newRequest;
     }
 
     // adds a participant to the lottery
     function back() public payable {
-        // check that the user entered at least .001 ETH (Value must be in wei)
+        // check that the user entered at least the minimum contribution
         require(msg.value >= minimumContribution, "You need to send at least the minimum contribution"); 
 
-        backersArr.push(payable(msg.sender));
+        if (backers[msg.sender] == 0) {
+            backersArr.push(payable(msg.sender));
+        }
         backers[payable(msg.sender)] += msg.value;
     }
 
@@ -91,15 +99,14 @@ contract campaign {
     // function used by a backer to approve a request (optimize)
     function approveRequest(uint index) public backerOnly {
         // check that the user is not already backing this request
-        Request storage requestToBack = requests[index];
         Request [] memory backersApprovedRequests = requestBackerRelations[msg.sender];
         for (uint i = 0; i < backersApprovedRequests.length; i++) {
-            require(keccak256(abi.encode(requestToBack)) == keccak256(abi.encode(backersApprovedRequests[i])), "You have already backed this request");
+            require(!(keccak256(abi.encode(requests[index])) == keccak256(abi.encode(backersApprovedRequests[i]))), "You have already backed this request");
         }
 
         // if we get here, it means that the user has not backed this request (yet)
-        requestToBack.approvers += 1;
-        requestBackerRelations[msg.sender].push(requestToBack);
+        requests[index].approvers += 1;
+        requestBackerRelations[msg.sender].push(requests[index]);
     }
 
     // returns the requests that a given backer address is currently approving
@@ -107,5 +114,23 @@ contract campaign {
         require(backers[backerAddress] >= minimumContribution, "The given address is not a backer");
 
         return requestBackerRelations[backerAddress];
+    }
+
+    function finalizeRequest(uint index) public managerOnly {
+        Request storage requestToFinalize = requests[index];
+        // require that the number of people approving the request is higher than half the number of backers 
+        require(requestToFinalize.approvers > backersArr.length / 2, "There are not enough positives votes");
+
+        // require that the request is not already completed
+        require(!requestToFinalize.isCompleted, "This request has already been completed");
+
+        // require that the request is not canceled
+        require(!requestToFinalize.isCanceled, "This request has been canceled");
+
+        // require that the value to be sent is lower than the contract's balance
+        require(address(this).balance > requestToFinalize.value, "The campaign does not have enough funds");
+        // mark the request as completed and send out the money
+        requestToFinalize.isCompleted = true;
+        payable(requestToFinalize.recipient).transfer(requestToFinalize.value);
     }
 }
